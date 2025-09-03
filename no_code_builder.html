@@ -48,8 +48,8 @@
     <!-- FontAwesome icons -->
     <link
       rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css"
-      integrity="sha512-DxV+EoADOkOygM4IR9yXP8Sb2qwgidEmeqAEmDKIOfPRQZOWbXCzLC6vjbZyy0vPisbH2SyW27+ddLVCN+OMzQ=="
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css"
+      integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw=="
       crossorigin="anonymous"
       referrerpolicy="no-referrer"
     />
@@ -226,13 +226,36 @@
          const nextStepBtn = document.getElementById('nextStepBtn');
          const doctorInput = document.getElementById('doctorInput');
          const doctorBtn = document.getElementById('doctorBtn');
-         const loadingSpinner = document.getElementById('loadingSpinner');
-         const previewFrame = document.getElementById('previewFrame');
-         // Keep track of conversation messages for multiple calls
-         let messages = [];
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const previewFrame = document.getElementById('previewFrame');
+        // Keep track of conversation messages for multiple calls
+        let messages = [];
         // History of page states for undo/redo (each entry stores {html, messages})
         let history = [];
         let historyIndex = -1;
+        const STORAGE_KEY = 'ncbState';
+
+        function loadState() {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return;
+          try {
+            const saved = JSON.parse(raw);
+            if (saved.html) {
+              previewFrame.srcdoc = saved.html;
+              updateUiFromHtml(saved.html);
+            }
+            if (Array.isArray(saved.messages)) {
+              messages = saved.messages.map((m) => ({ role: m.role, content: m.content }));
+            }
+            history = [
+              { html: previewFrame.srcdoc, messages: messages.map((m) => ({ role: m.role, content: m.content })) }
+            ];
+            historyIndex = 0;
+            updateUndoRedoButtons();
+          } catch (err) {
+            console.error('Failed to load saved state', err);
+          }
+        }
 
          async function sendRequest(messageList) {
            const payload = {
@@ -263,6 +286,7 @@
            messages = [];
            history = [];
            historyIndex = -1;
+           localStorage.removeItem(STORAGE_KEY);
            updateUndoRedoButtons();
            // Show loading spinner
            loadingSpinner.style.display = 'block';
@@ -603,6 +627,14 @@
           history.push({ html: htmlSnapshot, messages: msgCopy });
           historyIndex = history.length - 1;
           updateUndoRedoButtons();
+          try {
+            localStorage.setItem(
+              STORAGE_KEY,
+              JSON.stringify({ html: htmlSnapshot, messages: msgCopy })
+            );
+          } catch (err) {
+            console.error('Failed to persist state', err);
+          }
         }
 
         // Update Undo/Redo buttons based on current history index
@@ -635,6 +667,11 @@
             $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 400);
             updateUiFromHtml(state.html);
             updateUndoRedoButtons();
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            } catch (err) {
+              console.error('Failed to persist state', err);
+            }
           }
         }
 
@@ -648,6 +685,11 @@
             $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 400);
             updateUiFromHtml(state.html);
             updateUndoRedoButtons();
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            } catch (err) {
+              console.error('Failed to persist state', err);
+            }
           }
         }
 
@@ -767,6 +809,7 @@
         doctorBtn.addEventListener('click', applyDoctor);
         nextStepBtn.addEventListener('click', nextStep);
         // Initialize undo/redo buttons state
+        loadState();
         updateUndoRedoButtons();
         undoBtn.addEventListener('click', undo);
         redoBtn.addEventListener('click', redo);
