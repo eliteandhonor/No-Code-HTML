@@ -96,6 +96,9 @@
           placeholder="E.g. A hero section with a headline, subtext, and a call‑to‑action button"
           rows="4"
         ></textarea>
+        <div class="form-text">
+          Label each new block with <code>data-section</code> and a unique name.
+        </div>
       </div>
         <div class="d-flex flex-wrap gap-2 mb-3" data-aos="fade-up" data-aos-delay="200">
          <button id="generateBtn" class="btn btn-primary flex-fill">
@@ -364,8 +367,8 @@
         }
 
          async function generateHtml() {
-           const prompt = promptInput.value.trim();
-           if (!prompt) {
+           const basePrompt = promptInput.value.trim();
+           if (!basePrompt) {
              alert('Please enter a description for your page.');
              return;
            }
@@ -388,6 +391,9 @@
            try {
              const systemPrompt =
                "You are an assistant that generates HTML markup based on a user's description. Return only valid HTML without markdown or code fences.";
+             const prompt =
+               basePrompt +
+               '\n\nWrap each logical block in a tag with data-section="<unique-name>".';
              messages.push({ role: 'system', content: systemPrompt });
              messages.push({ role: 'user', content: prompt });
              const data = await sendRequest(messages);
@@ -447,7 +453,9 @@
              messages.push({
                role: 'user',
                content:
-                 'Existing HTML:\n' + currentHtml + '\n\nContinue generating the HTML code.',
+                 'Existing HTML:\n' +
+                 currentHtml +
+                 '\n\nContinue generating the HTML code. Wrap each logical block in a tag with data-section="<unique-name>".',
              });
              const data = await sendRequest(messages);
              let html = '';
@@ -665,7 +673,8 @@
                 'Existing HTML:\n' +
                 currentHtml +
                 '\n\nPlease implement the following suggestion: ' +
-                suggestion,
+                suggestion +
+                '\nWrap each logical block in a tag with data-section="<unique-name>".',
             });
             const data = await sendRequest(messages);
             let html = '';
@@ -725,7 +734,8 @@
                 'Existing HTML:\n' +
                 currentHtml +
                 '\n\nPlease modify the HTML as follows: ' +
-                instruction,
+                instruction +
+                '\nWrap each logical block in a tag with data-section="<unique-name>".',
             });
             const data = await sendRequest(messages);
             let html = '';
