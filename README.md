@@ -22,7 +22,11 @@ npm test
 
 ## Quick Navigation
 
-The table below maps line numbers in `no_code_builder.html` to key feature areas.
+The table below maps line numbers in `no_code_builder.html` to key feature areas. Run `npm run nav` after editing the HTML to regenerate it.
+
+```sh
+npm run nav
+```
 
 | Line | Feature |
 | ---- | ------- |
@@ -38,7 +42,7 @@ The table below maps line numbers in `no_code_builder.html` to key feature areas
 
 - Test coverage is limited to basic success and failure cases; additional edge cases (e.g., non-HTML files) would broaden coverage.
 - Automate CDN version checks to keep dependencies current.
-- Line numbers may drift as the file evolves; regenerate the Quick Navigation table after major edits.
+- Line numbers may drift as the file evolves; run `npm run nav` after major edits to refresh the Quick Navigation table.
 - Current tooling is minimal; adding CI, linting, and a lightweight web server could improve reliability.
 - Future work: pluggable AI backends, persisted project history, and more granular section editing.
 
