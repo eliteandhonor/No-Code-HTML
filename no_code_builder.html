@@ -116,6 +116,9 @@
          <button id="exportBtn" class="btn btn-success flex-fill" disabled>
            <i class="fas fa-download me-1"></i> Export
          </button>
+         <button id="editBtn" class="btn btn-outline-dark flex-fill" disabled>
+           <i class="fas fa-code me-1"></i> Edit
+         </button>
        </div>
       <div id="loadingSpinner" class="text-center my-3">
         <div class="spinner-border text-primary" role="status">
@@ -162,6 +165,25 @@
       </div>
     </div>
 
+    <!-- Code Editor Modal -->
+    <div class="modal fade" id="editorModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Edit HTML</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-0">
+            <div id="codeEditor" style="height: 400px"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" id="saveEditBtn" class="btn btn-primary">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- jQuery -->
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"
@@ -187,6 +209,25 @@
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.11/clipboard.min.js"
       integrity="sha512-7O5pXpc0oCRrxk8RUfDYFgn0nO1t+jLuIOQdOMRp4APB7uZ4vSjspzp5y6YDtDs4VzUSTbWzBFZ/LKJhnyFOKw=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <!-- Ace Editor -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.43.3/ace.min.js"
+      integrity="sha512-BHJlu9vUXVrcxhRwbBdNv3uTsbscp8pp3LJ5z/sw9nBJUegkNlkcZnvODRgynJWhXMCsVUGZlFuzTrr5I2X3sQ=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.43.3/mode-html.min.js"
+      integrity="sha512-D64TbdwtINWYv5Qa8znJN5wDlSGYpzJGUXBJ82tt2Bmhq0V9qfH2u29AUMOKtzGlubvQnuGspZ0qKJX2XGLRaA=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.43.3/theme-monokai.min.js"
+      integrity="sha512-g9yptARGYXbHR9r3kTKIAzF+vvmgEieTxuuUUcHC5tKYFpLR3DR+lsisH2KZJG2Nwaou8jjYVRdbbbBQI3Bo5w=="
       crossorigin="anonymous"
       referrerpolicy="no-referrer"
     ></script>
@@ -221,6 +262,8 @@
          const redoBtn = document.getElementById('redoBtn');
          const copyBtn = document.getElementById('copyBtn');
          const exportBtn = document.getElementById('exportBtn');
+         const editBtn = document.getElementById('editBtn');
+         const saveEditBtn = document.getElementById('saveEditBtn');
          const coachBtn = document.getElementById('coachBtn');
          const suggestionsList = document.getElementById('suggestionsList');
          const nextStepBtn = document.getElementById('nextStepBtn');
@@ -228,6 +271,7 @@
          const doctorBtn = document.getElementById('doctorBtn');
         const loadingSpinner = document.getElementById('loadingSpinner');
         const previewFrame = document.getElementById('previewFrame');
+        let editor;
         // Keep track of conversation messages for multiple calls
         let messages = [];
         // History of page states for undo/redo (each entry stores {html, messages})
@@ -235,6 +279,12 @@
         let historyIndex = -1;
         const STORAGE_KEY = 'ncbState';
 
+
+        // Initialize Ace editor
+        editor = ace.edit('codeEditor');
+        editor.session.setMode('ace/mode/html');
+        editor.setTheme('ace/theme/monokai');
+        editor.session.setUseWrapMode(true);
         function loadState() {
           const raw = localStorage.getItem(STORAGE_KEY);
           if (!raw) return;
@@ -258,6 +308,10 @@
         }
 
         async function sendRequest(messageList) {
+          const payload = {
+            maxTokens: 16384,
+            messages: messageList,
+          };
            const payload = {
              maxTokens: 16384,
              messages: messageList,
@@ -274,8 +328,40 @@
            if (!response.ok) {
              throw new Error('Server responded with status ' + response.status);
            }
-           return response.json();
-         }
+          return response.json();
+        }
+
+        function mergeHtmlIntoPreview(newHtml) {
+          const parser = new DOMParser();
+          const currentHtml =
+            previewFrame.srcdoc || '<!DOCTYPE html><html><head></head><body></body></html>';
+          const currentDoc = parser.parseFromString(currentHtml, 'text/html');
+          const newDoc = parser.parseFromString(newHtml, 'text/html');
+
+          Array.from(newDoc.head.children).forEach((node) => {
+            if (node.id) {
+              const existing = currentDoc.head.querySelector('#' + node.id);
+              if (existing) {
+                existing.replaceWith(node);
+                return;
+              }
+            }
+            currentDoc.head.appendChild(node);
+          });
+
+          Array.from(newDoc.body.children).forEach((node) => {
+            if (node.id) {
+              const existing = currentDoc.body.querySelector('#' + node.id);
+              if (existing) {
+                existing.replaceWith(node);
+                return;
+              }
+            }
+            currentDoc.body.appendChild(node);
+          });
+
+          previewFrame.srcdoc = '<!DOCTYPE html>' + currentDoc.documentElement.outerHTML;
+        }
 
          async function generateHtml() {
            const prompt = promptInput.value.trim();
@@ -357,7 +443,12 @@
            loadingSpinner.style.display = 'block';
            continueBtn.disabled = true;
            try {
-             messages.push({ role: 'user', content: 'Continue generating the HTML code.' });
+             const currentHtml = previewFrame.srcdoc;
+             messages.push({
+               role: 'user',
+               content:
+                 'Existing HTML:\n' + currentHtml + '\n\nContinue generating the HTML code.',
+             });
              const data = await sendRequest(messages);
              let html = '';
              if (data && typeof data === 'string') {
@@ -374,6 +465,8 @@
              ) {
                html = data.choices[0].message.content;
              }
+             mergeHtmlIntoPreview(html);
+             messages.push({ role: 'assistant', content: html });
             // Merge continuation into preview by diffing DOMs
             const parser = new DOMParser();
             const existingDoc = parser.parseFromString(
@@ -402,23 +495,22 @@
              $('#previewFrame')
                .css('opacity', 0)
                .animate({ opacity: 1 }, 600);
-             // Re-enable continue, coach and next step buttons
+             const mergedHtml = previewFrame.srcdoc;
+             const hasContent = mergedHtml && mergedHtml.trim().length > 0;
              continueBtn.disabled = false;
              coachBtn.disabled = false;
              nextStepBtn.disabled = false;
-             // Save current state for undo/redo
-             const currentHtml = previewFrame.srcdoc;
-             const hasContent = currentHtml && currentHtml.trim().length > 0;
+             editBtn.disabled = !hasContent;
              if (hasContent) {
-               saveState(currentHtml, messages);
+               saveState(mergedHtml, messages);
              }
            } catch (err) {
-             console.error(err);
-             alert('An error occurred: ' + err.message);
-           } finally {
-             loadingSpinner.style.display = 'none';
-           }
-         }
+            console.error(err);
+            alert('An error occurred: ' + err.message);
+          } finally {
+            loadingSpinner.style.display = 'none';
+          }
+        }
 
          function exportHtml() {
            const htmlContent = previewFrame.srcdoc;
@@ -564,10 +656,17 @@
           if (!suggestion || suggestion.trim().length === 0) {
             return;
           }
-          // Append suggestion as a new user instruction to conversation
           try {
             loadingSpinner.style.display = 'block';
-            messages.push({ role: 'user', content: 'Please implement the following suggestion: ' + suggestion });
+            const currentHtml = previewFrame.srcdoc;
+            messages.push({
+              role: 'user',
+              content:
+                'Existing HTML:\n' +
+                currentHtml +
+                '\n\nPlease implement the following suggestion: ' +
+                suggestion,
+            });
             const data = await sendRequest(messages);
             let html = '';
             if (data && typeof data === 'string') {
@@ -584,17 +683,21 @@
             ) {
               html = data.choices[0].message.content;
             }
-            // Save assistant message
             messages.push({ role: 'assistant', content: html });
+
+            mergeHtmlIntoPreview(html);
+            $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
+            const mergedHtml = previewFrame.srcdoc;
             const mergedHtml = mergeHtmlIntoPreview(html);
             $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
+
             const hasContent = mergedHtml && mergedHtml.trim().length > 0;
             copyBtn.disabled = !hasContent;
             exportBtn.disabled = !hasContent;
             continueBtn.disabled = !hasContent;
             coachBtn.disabled = !hasContent;
             nextStepBtn.disabled = !hasContent;
-            // Save current state for undo/redo
+            editBtn.disabled = !hasContent;
             if (hasContent) {
               saveState(mergedHtml, messages);
             }
@@ -615,7 +718,15 @@
           }
           try {
             loadingSpinner.style.display = 'block';
-            messages.push({ role: 'user', content: 'Please modify the HTML as follows: ' + instruction });
+            const currentHtml = previewFrame.srcdoc;
+            messages.push({
+              role: 'user',
+              content:
+                'Existing HTML:\n' +
+                currentHtml +
+                '\n\nPlease modify the HTML as follows: ' +
+                instruction,
+            });
             const data = await sendRequest(messages);
             let html = '';
             if (data && typeof data === 'string') {
@@ -633,17 +744,18 @@
               html = data.choices[0].message.content;
             }
             messages.push({ role: 'assistant', content: html });
+            mergeHtmlIntoPreview(html);
             const mergedHtml = mergeHtmlIntoPreview(html);
             $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
-            // Clear doctor input
             doctorInput.value = '';
+            const mergedHtml = previewFrame.srcdoc;
             const hasContent = mergedHtml && mergedHtml.trim().length > 0;
             copyBtn.disabled = !hasContent;
             exportBtn.disabled = !hasContent;
             continueBtn.disabled = !hasContent;
             coachBtn.disabled = !hasContent;
             nextStepBtn.disabled = !hasContent;
-            // Save current state for undo/redo
+            editBtn.disabled = !hasContent;
             if (hasContent) {
               saveState(mergedHtml, messages);
             }
@@ -690,6 +802,7 @@
           continueBtn.disabled = !hasContent;
           coachBtn.disabled = !hasContent;
           nextStepBtn.disabled = !hasContent;
+          editBtn.disabled = !hasContent;
           // Clear suggestions when reverting to previous state
           suggestionsList.innerHTML = '';
         }
@@ -852,6 +965,22 @@
         updateUndoRedoButtons();
         undoBtn.addEventListener('click', undo);
         redoBtn.addEventListener('click', redo);
+        editBtn.addEventListener('click', function () {
+          editor.setValue(previewFrame.srcdoc || '', -1);
+          const modal = new bootstrap.Modal(document.getElementById('editorModal'));
+          modal.show();
+        });
+        saveEditBtn.addEventListener('click', function () {
+          const newHtml = editor.getValue();
+          previewFrame.srcdoc = newHtml;
+          $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
+          updateUiFromHtml(newHtml);
+          const hasContent = newHtml && newHtml.trim().length > 0;
+          if (hasContent) {
+            saveState(newHtml, messages);
+          }
+          bootstrap.Modal.getInstance(document.getElementById('editorModal')).hide();
+        });
        })();
     </script>
   </body>
