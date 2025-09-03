@@ -99,6 +99,7 @@
         <div class="form-text">
           Label each new block with <code>data-section</code> and a unique name.
         </div>
+        <div id="sectionWarning" class="text-danger small"></div>
       </div>
         <div class="d-flex flex-wrap gap-2 mb-3" data-aos="fade-up" data-aos-delay="200">
          <button id="generateBtn" class="btn btn-primary flex-fill">
@@ -272,6 +273,7 @@
          const nextStepBtn = document.getElementById('nextStepBtn');
          const doctorInput = document.getElementById('doctorInput');
          const doctorBtn = document.getElementById('doctorBtn');
+        const sectionWarning = document.getElementById('sectionWarning');
         const loadingSpinner = document.getElementById('loadingSpinner');
         const previewFrame = document.getElementById('previewFrame');
         let editor;
@@ -281,6 +283,40 @@
         let history = [];
         let historyIndex = -1;
         const STORAGE_KEY = 'ncbState';
+
+        function validateDataSections() {
+          const doc = previewFrame.contentDocument;
+          if (!doc) return;
+          const elements = doc.querySelectorAll('[data-section]');
+          const seen = {};
+          const renamed = [];
+          elements.forEach((el) => {
+            const name = el.getAttribute('data-section');
+            if (!name) return;
+            if (seen[name]) {
+              let suffix = 1;
+              let newName = `${name}-${suffix}`;
+              while (seen[newName]) {
+                suffix++;
+                newName = `${name}-${suffix}`;
+              }
+              el.setAttribute('data-section', newName);
+              renamed.push(`${name}→${newName}`);
+              seen[newName] = true;
+            } else {
+              seen[name] = true;
+            }
+          });
+          if (renamed.length > 0) {
+            previewFrame.srcdoc = doc.documentElement.outerHTML;
+            if (sectionWarning) {
+              sectionWarning.textContent =
+                'Duplicate data-section values adjusted: ' + renamed.join(', ');
+            }
+          } else if (sectionWarning) {
+            sectionWarning.textContent = '';
+          }
+        }
 
 
         // Initialize Ace editor
@@ -295,7 +331,9 @@
             const saved = JSON.parse(raw);
             if (saved.html) {
               previewFrame.srcdoc = saved.html;
-              updateUiFromHtml(saved.html);
+              validateDataSections();
+              const sanitized = previewFrame.srcdoc;
+              updateUiFromHtml(sanitized);
             }
             if (Array.isArray(saved.messages)) {
               messages = saved.messages.map((m) => ({ role: m.role, content: m.content }));
@@ -334,39 +372,7 @@
           return response.json();
         }
 
-        function mergeHtmlIntoPreview(newHtml) {
-          const parser = new DOMParser();
-          const currentHtml =
-            previewFrame.srcdoc || '<!DOCTYPE html><html><head></head><body></body></html>';
-          const currentDoc = parser.parseFromString(currentHtml, 'text/html');
-          const newDoc = parser.parseFromString(newHtml, 'text/html');
-
-          Array.from(newDoc.head.children).forEach((node) => {
-            if (node.id) {
-              const existing = currentDoc.head.querySelector('#' + node.id);
-              if (existing) {
-                existing.replaceWith(node);
-                return;
-              }
-            }
-            currentDoc.head.appendChild(node);
-          });
-
-          Array.from(newDoc.body.children).forEach((node) => {
-            if (node.id) {
-              const existing = currentDoc.body.querySelector('#' + node.id);
-              if (existing) {
-                existing.replaceWith(node);
-                return;
-              }
-            }
-            currentDoc.body.appendChild(node);
-          });
-
-          previewFrame.srcdoc = '<!DOCTYPE html>' + currentDoc.documentElement.outerHTML;
-        }
-
-         async function generateHtml() {
+        async function generateHtml() {
            const basePrompt = promptInput.value.trim();
            if (!basePrompt) {
              alert('Please enter a description for your page.');
@@ -413,25 +419,27 @@
              ) {
                html = data.choices[0].message.content;
              }
-             // Save assistant message to conversation for continuation
-             messages.push({ role: 'assistant', content: html });
-             previewFrame.srcdoc = html;
-             // Fade in the preview frame using jQuery
-             $('#previewFrame')
-               .css('opacity', 0)
-               .animate({ opacity: 1 }, 600);
-             // Enable copy, export and continue buttons if there is content
-            const hasContent = html && html.trim().length > 0;
-            copyBtn.disabled = !hasContent;
-            exportBtn.disabled = !hasContent;
-            continueBtn.disabled = !hasContent;
-            coachBtn.disabled = !hasContent;
-            // Enable or disable next step button depending on content
-            nextStepBtn.disabled = !hasContent;
-            // Save current state for undo/redo
-            if (hasContent) {
-              saveState(html, messages);
-            }
+            // Save assistant message to conversation for continuation
+            messages.push({ role: 'assistant', content: html });
+            previewFrame.srcdoc = html;
+            validateDataSections();
+            const sanitizedHtml = previewFrame.srcdoc;
+            // Fade in the preview frame using jQuery
+            $('#previewFrame')
+              .css('opacity', 0)
+              .animate({ opacity: 1 }, 600);
+            // Enable copy, export and continue buttons if there is content
+           const hasContent = sanitizedHtml && sanitizedHtml.trim().length > 0;
+           copyBtn.disabled = !hasContent;
+           exportBtn.disabled = !hasContent;
+           continueBtn.disabled = !hasContent;
+           coachBtn.disabled = !hasContent;
+           // Enable or disable next step button depending on content
+           nextStepBtn.disabled = !hasContent;
+           // Save current state for undo/redo
+           if (hasContent) {
+             saveState(sanitizedHtml, messages);
+           }
            } catch (err) {
              console.error(err);
              alert('An error occurred: ' + err.message);
@@ -473,14 +481,14 @@
              ) {
                html = data.choices[0].message.content;
              }
-             mergeHtmlIntoPreview(html);
-             messages.push({ role: 'assistant', content: html });
-            // Merge continuation into preview by diffing DOMs
-            const parser = new DOMParser();
-            const existingDoc = parser.parseFromString(
-              previewFrame.srcdoc || '',
+            const mergedHtml = mergeHtmlIntoPreview(html);
+            messages.push({ role: 'assistant', content: html });
+           // Merge continuation into preview by diffing DOMs
+           const parser = new DOMParser();
+           const existingDoc = parser.parseFromString(
+              mergedHtml || '',
               'text/html'
-            );
+           );
             const newDoc = parser.parseFromString(html, 'text/html');
             ['head', 'body'].forEach((section) => {
               const existingSection = existingDoc[section];
@@ -497,22 +505,23 @@
               }
             });
             previewFrame.srcdoc = existingDoc.documentElement.outerHTML;
+            validateDataSections();
+            const finalHtml = previewFrame.srcdoc;
             // Save assistant message to conversation
             messages.push({ role: 'assistant', content: html });
              // Fade in preview again
              $('#previewFrame')
                .css('opacity', 0)
                .animate({ opacity: 1 }, 600);
-             const mergedHtml = previewFrame.srcdoc;
-             const hasContent = mergedHtml && mergedHtml.trim().length > 0;
-             continueBtn.disabled = false;
-             coachBtn.disabled = false;
-             nextStepBtn.disabled = false;
-             editBtn.disabled = !hasContent;
-             if (hasContent) {
-               saveState(mergedHtml, messages);
-             }
-           } catch (err) {
+            const hasContent = finalHtml && finalHtml.trim().length > 0;
+            continueBtn.disabled = false;
+            coachBtn.disabled = false;
+            nextStepBtn.disabled = false;
+            editBtn.disabled = !hasContent;
+            if (hasContent) {
+              saveState(finalHtml, messages);
+            }
+          } catch (err) {
             console.error(err);
             alert('An error occurred: ' + err.message);
           } finally {
@@ -520,8 +529,9 @@
           }
         }
 
-         function exportHtml() {
-           const htmlContent = previewFrame.srcdoc;
+        function exportHtml() {
+          validateDataSections();
+          const htmlContent = previewFrame.srcdoc;
            if (!htmlContent) {
              alert('No HTML to export.');
              return;
@@ -656,7 +666,8 @@
           });
           const merged = doc.documentElement.outerHTML;
           previewFrame.srcdoc = merged;
-          return merged;
+          validateDataSections();
+          return previewFrame.srcdoc;
         }
 
         // Apply an individual suggestion by sending it to the assistant
@@ -694,9 +705,6 @@
             }
             messages.push({ role: 'assistant', content: html });
 
-            mergeHtmlIntoPreview(html);
-            $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
-            const mergedHtml = previewFrame.srcdoc;
             const mergedHtml = mergeHtmlIntoPreview(html);
             $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
 
@@ -754,11 +762,9 @@
               html = data.choices[0].message.content;
             }
             messages.push({ role: 'assistant', content: html });
-            mergeHtmlIntoPreview(html);
             const mergedHtml = mergeHtmlIntoPreview(html);
             $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
             doctorInput.value = '';
-            const mergedHtml = previewFrame.srcdoc;
             const hasContent = mergedHtml && mergedHtml.trim().length > 0;
             copyBtn.disabled = !hasContent;
             exportBtn.disabled = !hasContent;
@@ -825,9 +831,11 @@
             // Restore messages and HTML
             messages = state.messages.map((m) => ({ role: m.role, content: m.content }));
             previewFrame.srcdoc = state.html;
+            validateDataSections();
+            const updated = previewFrame.srcdoc;
             // Fade in restored preview
             $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 400);
-            updateUiFromHtml(state.html);
+            updateUiFromHtml(updated);
             updateUndoRedoButtons();
             try {
               localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -844,8 +852,10 @@
             const state = history[historyIndex];
             messages = state.messages.map((m) => ({ role: m.role, content: m.content }));
             previewFrame.srcdoc = state.html;
+            validateDataSections();
+            const updated = previewFrame.srcdoc;
             $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 400);
-            updateUiFromHtml(state.html);
+            updateUiFromHtml(updated);
             updateUndoRedoButtons();
             try {
               localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -983,11 +993,13 @@
         saveEditBtn.addEventListener('click', function () {
           const newHtml = editor.getValue();
           previewFrame.srcdoc = newHtml;
+          validateDataSections();
+          const updatedHtml = previewFrame.srcdoc;
           $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
-          updateUiFromHtml(newHtml);
-          const hasContent = newHtml && newHtml.trim().length > 0;
+          updateUiFromHtml(updatedHtml);
+          const hasContent = updatedHtml && updatedHtml.trim().length > 0;
           if (hasContent) {
-            saveState(newHtml, messages);
+            saveState(updatedHtml, messages);
           }
           bootstrap.Modal.getInstance(document.getElementById('editorModal')).hide();
         });
