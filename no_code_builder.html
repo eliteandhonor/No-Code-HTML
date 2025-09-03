@@ -374,10 +374,30 @@
              ) {
                html = data.choices[0].message.content;
              }
-             // Append continuation to preview by concatenating
-             previewFrame.srcdoc += html;
-             // Save assistant message to conversation
-             messages.push({ role: 'assistant', content: html });
+            // Merge continuation into preview by diffing DOMs
+            const parser = new DOMParser();
+            const existingDoc = parser.parseFromString(
+              previewFrame.srcdoc || '',
+              'text/html'
+            );
+            const newDoc = parser.parseFromString(html, 'text/html');
+            ['head', 'body'].forEach((section) => {
+              const existingSection = existingDoc[section];
+              const newSection = newDoc[section];
+              if (existingSection && newSection) {
+                Array.from(newSection.childNodes).forEach((node) => {
+                  const isDuplicate = Array.from(existingSection.childNodes).some(
+                    (existingNode) => existingNode.isEqualNode(node)
+                  );
+                  if (!isDuplicate) {
+                    existingSection.appendChild(node.cloneNode(true));
+                  }
+                });
+              }
+            });
+            previewFrame.srcdoc = existingDoc.documentElement.outerHTML;
+            // Save assistant message to conversation
+            messages.push({ role: 'assistant', content: html });
              // Fade in preview again
              $('#previewFrame')
                .css('opacity', 0)
