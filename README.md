@@ -34,3 +34,11 @@ The table below maps line numbers in `no_code_builder.html` to key feature areas
 | 142 | AI Coach |
 | 172 | Code Editor Modal |
 
+## Limitations & Next Steps
+
+- Test coverage is limited to basic success and failure cases; additional edge cases (e.g., non-HTML files) would broaden coverage.
+- Automate CDN version checks to keep dependencies current.
+- Line numbers may drift as the file evolves; regenerate the Quick Navigation table after major edits.
+- Current tooling is minimal; adding CI, linting, and a lightweight web server could improve reliability.
+- Future work: pluggable AI backends, persisted project history, and more granular section editing.
+
