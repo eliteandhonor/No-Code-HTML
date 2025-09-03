@@ -660,12 +660,16 @@
            if (hasContent) {
              saveState(sanitizedHtml, messages);
            }
-           } catch (err) {
-             console.error(err);
-             alert('An error occurred: ' + err.message);
-           } finally {
-             loadingSpinner.style.display = 'none';
-           }
+          } catch (err) {
+            if (err.name === 'AbortError') {
+              console.warn('Request aborted');
+            } else {
+              console.error(err);
+              alert('An error occurred: ' + err.message);
+            }
+          } finally {
+            loadingSpinner.style.display = 'none';
+          }
          }
 
          async function continueHtml() {
@@ -712,12 +716,16 @@
              if (hasContent) {
                saveState(mergedHtml, messages);
              }
-           } catch (err) {
-             console.error(err);
-             alert('An error occurred: ' + err.message);
-           } finally {
-             loadingSpinner.style.display = 'none';
-           }
+          } catch (err) {
+            if (err.name === 'AbortError') {
+              console.warn('Request aborted');
+            } else {
+              console.error(err);
+              alert('An error occurred: ' + err.message);
+            }
+          } finally {
+            loadingSpinner.style.display = 'none';
+          }
          }
 
         function exportHtml() {
@@ -825,8 +833,12 @@
               });
             }
           } catch (err) {
-            console.error(err);
-            alert('An error occurred: ' + err.message);
+            if (err.name === 'AbortError') {
+              console.warn('Request aborted');
+            } else {
+              console.error(err);
+              alert('An error occurred: ' + err.message);
+            }
           } finally {
             coachBtn.disabled = false;
             // Enable next step if there are suggestions to act upon
@@ -889,8 +901,12 @@
               messages.pop();
             }
           } catch (err) {
-            console.error(err);
-            alert('An error occurred: ' + err.message);
+            if (err.name === 'AbortError') {
+              console.warn('Request aborted');
+            } else {
+              console.error(err);
+              alert('An error occurred: ' + err.message);
+            }
           } finally {
             loadingSpinner.style.display = 'none';
           }
@@ -954,8 +970,12 @@
               messages.pop();
             }
           } catch (err) {
-            console.error(err);
-            alert('An error occurred: ' + err.message);
+            if (err.name === 'AbortError') {
+              console.warn('Request aborted');
+            } else {
+              console.error(err);
+              alert('An error occurred: ' + err.message);
+            }
           } finally {
             loadingSpinner.style.display = 'none';
           }
@@ -1119,8 +1139,12 @@
               }
             }
           } catch (err) {
-            console.error(err);
-            alert('An error occurred: ' + err.message);
+            if (err.name === 'AbortError') {
+              console.warn('Request aborted');
+            } else {
+              console.error(err);
+              alert('An error occurred: ' + err.message);
+            }
           } finally {
             // Re-enable next step if we still have content
             const hasContentNow = previewFrame.srcdoc && previewFrame.srcdoc.trim().length > 0;
