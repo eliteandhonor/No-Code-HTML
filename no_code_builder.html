@@ -263,7 +263,9 @@
     <script>
       // Initialize AOS once the document is ready
       document.addEventListener('DOMContentLoaded', function () {
-        AOS.init({ duration: 600, once: true });
+        if (window.AOS) {
+          window.AOS.init({ duration: 600, once: true });
+        }
       });
 
       // ClipboardJS setup
