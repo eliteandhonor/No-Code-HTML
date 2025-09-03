@@ -19,3 +19,18 @@ Install dependencies and run the validation script to ensure each top-level bloc
 npm install
 npm test
 ```
+
+## Quick Navigation
+
+The table below maps line numbers in `no_code_builder.html` to key feature areas.
+
+| Line | Feature |
+| ---- | ------- |
+| 79 | Builder Container |
+| 87 | Prompt Input |
+| 101 | Builder Controls |
+| 125 | Loading Spinner |
+| 132 | Preview Iframe |
+| 142 | AI Coach |
+| 172 | Code Editor Modal |
+

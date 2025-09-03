@@ -75,6 +75,7 @@
     </style>
   </head>
   <body>
+    <!-- [L79] Builder Container -->
     <div class="builder-container animate__animated animate__fadeInUp" data-section="builder">
       <h1 class="h3 text-center mb-3">
         <i class="fas fa-code"></i> No&nbsp;Code HTML&nbsp;Builder
@@ -82,6 +83,7 @@
       <p class="text-center text-muted mb-4">
         Describe your page and let AI do the rest.
       </p>
+      <!-- [L87] Prompt Input -->
       <div class="mb-3" data-aos="fade-up" data-aos-delay="100">
         <label for="promptInput" class="form-label fw-semibold">Enter your prompt:</label>
         <textarea
@@ -95,6 +97,7 @@
         </div>
         <div id="sectionWarning" class="text-danger small"></div>
       </div>
+        <!-- [L101] Builder Controls -->
         <div class="d-flex flex-wrap gap-2 mb-3" data-aos="fade-up" data-aos-delay="200">
          <button id="generateBtn" class="btn btn-primary flex-fill">
            <i class="fas fa-magic me-1"></i> Generate
@@ -118,12 +121,14 @@
            <i class="fas fa-code me-1"></i> Edit
          </button>
        </div>
+      <!-- [L125] Loading Spinner -->
       <div id="loadingSpinner" class="text-center my-3">
         <div class="spinner-border text-primary" role="status">
           <span class="visually-hidden">Loading...</span>
         </div>
         <p class="mt-2">Generating your page…</p>
       </div>
+      <!-- [L132] Preview Iframe -->
       <div class="mb-3" data-aos="fade-up" data-aos-delay="300">
         <iframe
           id="previewFrame"
@@ -133,7 +138,7 @@
         ></iframe>
       </div>
 
-      <!-- AI Coach Section -->
+      <!-- [L142] AI Coach -->
       <div class="mb-3" data-aos="fade-up" data-aos-delay="400">
         <h5>AI Coach</h5>
         <button id="coachBtn" class="btn btn-info mb-2" disabled>
@@ -163,7 +168,7 @@
       </div>
     </div>
 
-    <!-- Code Editor Modal -->
+    <!-- [L172] Code Editor Modal -->
     <div class="modal fade" id="editorModal" tabindex="-1" aria-hidden="true" data-section="editor-modal">
       <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
