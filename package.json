@@ -1,0 +1,16 @@
+{
+  "name": "no-code-html",
+  "version": "1.0.0",
+  "description": "A single-page web app that generates and iteratively refines HTML using a custom AI endpoint.",
+  "main": "index.js",
+  "scripts": {
+    "test": "node validateSections.js no_code_builder.html"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cheerio": "^1.1.2"
+  }
+}

@@ -10,3 +10,12 @@ Open `no_code_builder.html` in your browser, describe the page you want, and cli
 ## Development
 
 The app relies on CDN-hosted libraries: Bootstrap, jQuery, animate.css, AOS, FontAwesome, and clipboard.js. No build step is required; simply open the HTML file.
+
+### HTML validation
+
+Install dependencies and run the validation script to ensure each top-level block in `no_code_builder.html` defines a `data-section` attribute:
+
+```sh
+npm install
+npm test
+```
