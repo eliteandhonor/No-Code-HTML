@@ -9,7 +9,7 @@ Open `no_code_builder.html` in your browser, describe the page you want, and cli
 
 ## Development
 
-The app relies on CDN-hosted libraries: Bootstrap, jQuery, animate.css, AOS, FontAwesome, and clipboard.js. No build step is required; simply open the HTML file.
+The app relies on CDN-hosted libraries (Bootstrap, jQuery, animate.css, FontAwesome, clipboard.js, and Ace). AOS is bundled locally in `vendor/aos`; rebuild with `npm run build:aos` if you need to refresh the files.
 
 ### HTML validation
 
