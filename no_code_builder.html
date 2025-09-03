@@ -1,0 +1,776 @@
+<!--
+  No Code HTML Builder
+
+  This single‑file web application allows users to describe a web page
+  in plain language and sends that description to a custom AI endpoint
+  (https://ominisender.com/wp-json/azurechat/v1/completions).  The AI
+  returns generated HTML which is then rendered in a sandboxed
+  iframe preview.  Users can copy the generated HTML to the
+  clipboard or export it as a standalone file.  A selection of
+  lightweight CDN‑hosted libraries (Bootstrap, jQuery, AOS, animate.css,
+  FontAwesome, clipboard.js and anime.js) provide styling and
+  animation without adding bloat to this single page.
+
+  IMPORTANT: You should replace the request payload inside
+  `fetch()` if your endpoint expects a different schema.  For
+  example, some models require `{ messages: [{ role: 'user', content: prompt }] }`.
+-->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>No Code HTML Builder</title>
+    <!-- Bootstrap CSS -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/css/bootstrap.min.css"
+      integrity="sha512-2bBQCjcnw658Lho4nlXJcc6WkV/UxpE/sAokbXPxQNGqmNdQrWqtw26Ns9kFF/yG792pKR1Sx8/Y1Lf1XN4GKA=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <!-- animate.css for simple animations -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"
+      integrity="sha512-c42qTSw/wPZ3/5LBzD+Bw5f7bSF2oxou6wEb+I/lqeaKV5FDIfMvvRp772y4jcJLKuGUOpbJMdg/BTl50fJYAw=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <!-- AOS (Animate On Scroll) library -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css"
+      integrity="sha512-1cK78a1o+ht2JcaW6g8OXYwqpev9+6GqOkz9xmBN9iUUhIndKtxwILGWYOSibOKjLsEdjyjZvYDq/cZwNeak0w=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <!-- FontAwesome icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css"
+      integrity="sha512-DxV+EoADOkOygM4IR9yXP8Sb2qwgidEmeqAEmDKIOfPRQZOWbXCzLC6vjbZyy0vPisbH2SyW27+ddLVCN+OMzQ=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+
+    <style>
+      body {
+        background-color: #f5f7fa;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+          sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+      }
+      .builder-container {
+        max-width: 900px;
+        margin: 60px auto;
+        padding: 20px;
+        background: #ffffff;
+        border-radius: 0.5rem;
+        box-shadow: 0 10px 15px rgba(0, 0, 0, 0.05);
+      }
+      .preview-frame {
+        width: 100%;
+        height: 480px;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        background: #fff;
+      }
+      #loadingSpinner {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="builder-container animate__animated animate__fadeInUp">
+      <h1 class="h3 text-center mb-3">
+        <i class="fas fa-code"></i> No&nbsp;Code HTML&nbsp;Builder
+      </h1>
+      <p class="text-center text-muted mb-4">
+        Describe your page and let AI do the rest.
+      </p>
+      <div class="mb-3" data-aos="fade-up" data-aos-delay="100">
+        <label for="promptInput" class="form-label fw-semibold">Enter your prompt:</label>
+        <textarea
+          id="promptInput"
+          class="form-control"
+          placeholder="E.g. A hero section with a headline, subtext, and a call‑to‑action button"
+          rows="4"
+        ></textarea>
+      </div>
+        <div class="d-flex flex-wrap gap-2 mb-3" data-aos="fade-up" data-aos-delay="200">
+         <button id="generateBtn" class="btn btn-primary flex-fill">
+           <i class="fas fa-magic me-1"></i> Generate
+         </button>
+         <button id="continueBtn" class="btn btn-outline-primary flex-fill" disabled>
+           <i class="fas fa-forward me-1"></i> Continue
+         </button>
+         <button id="undoBtn" class="btn btn-outline-secondary flex-fill" disabled>
+           <i class="fas fa-undo me-1"></i> Undo
+         </button>
+         <button id="redoBtn" class="btn btn-outline-secondary flex-fill" disabled>
+           <i class="fas fa-redo me-1"></i> Redo
+         </button>
+         <button id="copyBtn" class="btn btn-secondary flex-fill" disabled>
+           <i class="fas fa-copy me-1"></i> Copy&nbsp;HTML
+         </button>
+         <button id="exportBtn" class="btn btn-success flex-fill" disabled>
+           <i class="fas fa-download me-1"></i> Export
+         </button>
+       </div>
+      <div id="loadingSpinner" class="text-center my-3">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2">Generating your page…</p>
+      </div>
+      <div class="mb-3" data-aos="fade-up" data-aos-delay="300">
+        <iframe
+          id="previewFrame"
+          class="preview-frame"
+          sandbox="allow-scripts"
+          title="Generated Preview"
+        ></iframe>
+      </div>
+
+      <!-- AI Coach Section -->
+      <div class="mb-3" data-aos="fade-up" data-aos-delay="400">
+        <h5>AI Coach</h5>
+        <button id="coachBtn" class="btn btn-info mb-2" disabled>
+          <i class="fas fa-lightbulb me-1"></i> Get Suggestions
+        </button>
+        <ul id="suggestionsList" class="list-group"></ul>
+        <button
+          id="nextStepBtn"
+          class="btn btn-warning mt-2"
+          type="button"
+          disabled
+        >
+          <i class="fas fa-play me-1"></i> Next Step
+        </button>
+        <label for="doctorInput" class="form-label mt-3">Doctor instructions:</label>
+        <div class="input-group">
+          <input
+            id="doctorInput"
+            type="text"
+            class="form-control"
+            placeholder="Describe the change you want to apply…"
+          />
+          <button id="doctorBtn" class="btn btn-warning" type="button">
+            <i class="fas fa-stethoscope me-1"></i> Apply
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- jQuery -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"
+      integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <!-- Bootstrap Bundle (includes Popper) -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/js/bootstrap.bundle.min.js"
+      integrity="sha512-HvOjJrdwNpDbkGJIG2ZNqDlVqMo77qbs4Me4cah0HoDrfhrbA+8SBlZn1KrvAQw7cILLPFJvdwIgphzQmMm+Pw=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <!-- AOS JS -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js"
+      integrity="sha512-A7AYk1fGKX6S2SsHywmPkrnzTZHrgiVT7GcQkLGDe2ev0aWb8zejytzS8wjo7PGEXKqJOrjQ4oORtnimIRZBtw=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <!-- Clipboard.js -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.11/clipboard.min.js"
+      integrity="sha512-7O5pXpc0oCRrxk8RUfDYFgn0nO1t+jLuIOQdOMRp4APB7uZ4vSjspzp5y6YDtDs4VzUSTbWzBFZ/LKJhnyFOKw=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <!-- Removed anime.js: using jQuery for simple fade animations -->
+
+    <script>
+      // Initialize AOS once the document is ready
+      document.addEventListener('DOMContentLoaded', function () {
+        AOS.init({ duration: 600, once: true });
+      });
+
+      // ClipboardJS setup
+      var clipboard = new ClipboardJS('#copyBtn', {
+        text: function () {
+          return document.getElementById('previewFrame').srcdoc || '';
+        },
+      });
+      clipboard.on('success', function (e) {
+        e.clearSelection();
+        alert('HTML copied to clipboard!');
+      });
+      clipboard.on('error', function () {
+        alert('Failed to copy.');
+      });
+
+      // Main app logic
+       (function () {
+         const promptInput = document.getElementById('promptInput');
+         const generateBtn = document.getElementById('generateBtn');
+         const continueBtn = document.getElementById('continueBtn');
+         const undoBtn = document.getElementById('undoBtn');
+         const redoBtn = document.getElementById('redoBtn');
+         const copyBtn = document.getElementById('copyBtn');
+         const exportBtn = document.getElementById('exportBtn');
+         const coachBtn = document.getElementById('coachBtn');
+         const suggestionsList = document.getElementById('suggestionsList');
+         const nextStepBtn = document.getElementById('nextStepBtn');
+         const doctorInput = document.getElementById('doctorInput');
+         const doctorBtn = document.getElementById('doctorBtn');
+         const loadingSpinner = document.getElementById('loadingSpinner');
+         const previewFrame = document.getElementById('previewFrame');
+         // Keep track of conversation messages for multiple calls
+         let messages = [];
+        // History of page states for undo/redo (each entry stores {html, messages})
+        let history = [];
+        let historyIndex = -1;
+
+         async function sendRequest(messageList) {
+           const payload = {
+             maxTokens: 16384,
+             messages: messageList,
+           };
+           const response = await fetch(
+             'https://ominisender.com/wp-json/azurechat/v1/completions',
+             {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify(payload),
+             }
+           );
+           if (!response.ok) {
+             throw new Error('Server responded with status ' + response.status);
+           }
+           return response.json();
+         }
+
+         async function generateHtml() {
+           const prompt = promptInput.value.trim();
+           if (!prompt) {
+             alert('Please enter a description for your page.');
+             return;
+           }
+           // reset messages array and history for a fresh generation
+           messages = [];
+           history = [];
+           historyIndex = -1;
+           updateUndoRedoButtons();
+           // Show loading spinner
+           loadingSpinner.style.display = 'block';
+           // Clear any previous preview
+           previewFrame.srcdoc = '';
+           copyBtn.disabled = true;
+           exportBtn.disabled = true;
+           continueBtn.disabled = true;
+           // Clear previous suggestions and disable coach until new content
+           suggestionsList.innerHTML = '';
+           coachBtn.disabled = true;
+           try {
+             const systemPrompt =
+               "You are an assistant that generates HTML markup based on a user's description. Return only valid HTML without markdown or code fences.";
+             messages.push({ role: 'system', content: systemPrompt });
+             messages.push({ role: 'user', content: prompt });
+             const data = await sendRequest(messages);
+             let html = '';
+             // Attempt to extract HTML from several potential response shapes
+             if (data && typeof data === 'string') {
+               html = data;
+             } else if (data.html) {
+               html = data.html;
+             } else if (data.content) {
+               html = data.content;
+             } else if (
+               data.choices &&
+               data.choices[0] &&
+               data.choices[0].message &&
+               data.choices[0].message.content
+             ) {
+               html = data.choices[0].message.content;
+             }
+             // Save assistant message to conversation for continuation
+             messages.push({ role: 'assistant', content: html });
+             previewFrame.srcdoc = html;
+             // Fade in the preview frame using jQuery
+             $('#previewFrame')
+               .css('opacity', 0)
+               .animate({ opacity: 1 }, 600);
+             // Enable copy, export and continue buttons if there is content
+            const hasContent = html && html.trim().length > 0;
+            copyBtn.disabled = !hasContent;
+            exportBtn.disabled = !hasContent;
+            continueBtn.disabled = !hasContent;
+            coachBtn.disabled = !hasContent;
+            // Enable or disable next step button depending on content
+            nextStepBtn.disabled = !hasContent;
+            // Save current state for undo/redo
+            if (hasContent) {
+              saveState(html, messages);
+            }
+           } catch (err) {
+             console.error(err);
+             alert('An error occurred: ' + err.message);
+           } finally {
+             loadingSpinner.style.display = 'none';
+           }
+         }
+
+         async function continueHtml() {
+           // Use existing messages and ask the assistant to continue
+           if (messages.length === 0) {
+             alert('No previous generation to continue. Please generate first.');
+             return;
+           }
+           loadingSpinner.style.display = 'block';
+           continueBtn.disabled = true;
+           try {
+             messages.push({ role: 'user', content: 'Continue generating the HTML code.' });
+             const data = await sendRequest(messages);
+             let html = '';
+             if (data && typeof data === 'string') {
+               html = data;
+             } else if (data.html) {
+               html = data.html;
+             } else if (data.content) {
+               html = data.content;
+             } else if (
+               data.choices &&
+               data.choices[0] &&
+               data.choices[0].message &&
+               data.choices[0].message.content
+             ) {
+               html = data.choices[0].message.content;
+             }
+             // Append continuation to preview by concatenating
+             previewFrame.srcdoc += html;
+             // Save assistant message to conversation
+             messages.push({ role: 'assistant', content: html });
+             // Fade in preview again
+             $('#previewFrame')
+               .css('opacity', 0)
+               .animate({ opacity: 1 }, 600);
+             // Re-enable continue, coach and next step buttons
+             continueBtn.disabled = false;
+             coachBtn.disabled = false;
+             nextStepBtn.disabled = false;
+             // Save current state for undo/redo
+             const currentHtml = previewFrame.srcdoc;
+             const hasContent = currentHtml && currentHtml.trim().length > 0;
+             if (hasContent) {
+               saveState(currentHtml, messages);
+             }
+           } catch (err) {
+             console.error(err);
+             alert('An error occurred: ' + err.message);
+           } finally {
+             loadingSpinner.style.display = 'none';
+           }
+         }
+
+         function exportHtml() {
+           const htmlContent = previewFrame.srcdoc;
+           if (!htmlContent) {
+             alert('No HTML to export.');
+             return;
+           }
+           const blob = new Blob([htmlContent], { type: 'text/html' });
+           const url = URL.createObjectURL(blob);
+           const a = document.createElement('a');
+           a.href = url;
+           a.download = 'generated.html';
+           document.body.appendChild(a);
+           a.click();
+           document.body.removeChild(a);
+           URL.revokeObjectURL(url);
+         }
+
+        // Fetch improvement suggestions from the AI coach
+        async function getSuggestions() {
+          // Suggestions require generated content
+          if (!previewFrame.srcdoc || previewFrame.srcdoc.trim().length === 0) {
+            alert('Generate your page first to get suggestions.');
+            return;
+          }
+          coachBtn.disabled = true;
+          suggestionsList.innerHTML = '';
+          try {
+            const description = promptInput.value.trim();
+            const htmlContent = previewFrame.srcdoc;
+            const systemCoach =
+              'You are an AI coach for web design. Given a user description and its generated HTML code, provide up to three suggestions for how to improve and continue building the page. For each suggestion, first give a short explanation of what needs to be done, then a hyphen ( - ), followed by the exact instructions on how to implement that improvement. Each suggestion must be on its own line and should not include any code.';
+            const payload = {
+              maxTokens: 1024,
+              messages: [
+                { role: 'system', content: systemCoach },
+                {
+                  role: 'user',
+                  content:
+                    'Description:\n' +
+                    description +
+                    '\n\nHTML:\n' +
+                    htmlContent,
+                },
+              ],
+            };
+            const response = await fetch(
+              'https://ominisender.com/wp-json/azurechat/v1/completions',
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              }
+            );
+            if (!response.ok) {
+              throw new Error('Server responded with status ' + response.status);
+            }
+            const data = await response.json();
+            let suggestionsText = '';
+            if (data && typeof data === 'string') {
+              suggestionsText = data;
+            } else if (data.content) {
+              suggestionsText = data.content;
+            } else if (
+              data.choices &&
+              data.choices[0] &&
+              data.choices[0].message &&
+              data.choices[0].message.content
+            ) {
+              suggestionsText = data.choices[0].message.content;
+            } else if (data.html) {
+              suggestionsText = data.html;
+            }
+            // Split suggestions by newline and filter out empty strings
+            const rawSuggestions = suggestionsText
+              .split(/\r?\n/)
+              .map((s) => s.trim())
+              .filter((s) => s.length > 0);
+            suggestionsList.innerHTML = '';
+            if (rawSuggestions.length === 0) {
+              const li = document.createElement('li');
+              li.className = 'list-group-item';
+              li.textContent = 'No suggestions available.';
+              suggestionsList.appendChild(li);
+            } else {
+              rawSuggestions.forEach((line) => {
+                // Each suggestion line expected format: explanation - instructions
+                let explanation = line;
+                let instructions = line;
+                const idx = line.indexOf(' - ');
+                if (idx !== -1) {
+                  explanation = line.substring(0, idx).trim();
+                  instructions = line.substring(idx + 3).trim();
+                }
+                const li = document.createElement('li');
+                li.className = 'list-group-item d-flex justify-content-between align-items-center p-2';
+                const span = document.createElement('span');
+                span.textContent = explanation;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-sm btn-outline-primary ms-3';
+                btn.textContent = 'Build';
+                btn.addEventListener('click', function () {
+                  // Use the instructions part; fallback to full line if no explicit instructions
+                  const impl = instructions || line;
+                  applySuggestion(impl);
+                });
+                li.appendChild(span);
+                li.appendChild(btn);
+                suggestionsList.appendChild(li);
+              });
+            }
+          } catch (err) {
+            console.error(err);
+            alert('An error occurred: ' + err.message);
+          } finally {
+            coachBtn.disabled = false;
+            // Enable next step if there are suggestions to act upon
+            nextStepBtn.disabled = suggestionsList.children.length === 0;
+          }
+        }
+
+        // Apply an individual suggestion by sending it to the assistant
+        async function applySuggestion(suggestion) {
+          if (!suggestion || suggestion.trim().length === 0) {
+            return;
+          }
+          // Append suggestion as a new user instruction to conversation
+          try {
+            loadingSpinner.style.display = 'block';
+            messages.push({ role: 'user', content: 'Please implement the following suggestion: ' + suggestion });
+            const data = await sendRequest(messages);
+            let html = '';
+            if (data && typeof data === 'string') {
+              html = data;
+            } else if (data.html) {
+              html = data.html;
+            } else if (data.content) {
+              html = data.content;
+            } else if (
+              data.choices &&
+              data.choices[0] &&
+              data.choices[0].message &&
+              data.choices[0].message.content
+            ) {
+              html = data.choices[0].message.content;
+            }
+            // Save assistant message
+            messages.push({ role: 'assistant', content: html });
+            previewFrame.srcdoc = html;
+            $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
+            const hasContent = html && html.trim().length > 0;
+            copyBtn.disabled = !hasContent;
+            exportBtn.disabled = !hasContent;
+            continueBtn.disabled = !hasContent;
+            coachBtn.disabled = !hasContent;
+            nextStepBtn.disabled = !hasContent;
+            // Save current state for undo/redo
+            if (hasContent) {
+              saveState(html, messages);
+            }
+          } catch (err) {
+            console.error(err);
+            alert('An error occurred: ' + err.message);
+          } finally {
+            loadingSpinner.style.display = 'none';
+          }
+        }
+
+        // Apply doctor modifications based on user input
+        async function applyDoctor() {
+          const instruction = doctorInput.value.trim();
+          if (!instruction) {
+            alert('Please enter a modification instruction.');
+            return;
+          }
+          try {
+            loadingSpinner.style.display = 'block';
+            messages.push({ role: 'user', content: 'Please modify the HTML as follows: ' + instruction });
+            const data = await sendRequest(messages);
+            let html = '';
+            if (data && typeof data === 'string') {
+              html = data;
+            } else if (data.html) {
+              html = data.html;
+            } else if (data.content) {
+              html = data.content;
+            } else if (
+              data.choices &&
+              data.choices[0] &&
+              data.choices[0].message &&
+              data.choices[0].message.content
+            ) {
+              html = data.choices[0].message.content;
+            }
+            messages.push({ role: 'assistant', content: html });
+            previewFrame.srcdoc = html;
+            $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
+            // Clear doctor input
+            doctorInput.value = '';
+            const hasContent = html && html.trim().length > 0;
+            copyBtn.disabled = !hasContent;
+            exportBtn.disabled = !hasContent;
+            continueBtn.disabled = !hasContent;
+            coachBtn.disabled = !hasContent;
+            nextStepBtn.disabled = !hasContent;
+            // Save current state for undo/redo
+            if (hasContent) {
+              saveState(html, messages);
+            }
+          } catch (err) {
+            console.error(err);
+            alert('An error occurred: ' + err.message);
+          } finally {
+            loadingSpinner.style.display = 'none';
+          }
+        }
+
+        // Save state to history for undo/redo
+        function saveState(htmlSnapshot, messagesSnapshot) {
+          // If undo has been used, discard any future states
+          if (historyIndex < history.length - 1) {
+            history = history.slice(0, historyIndex + 1);
+          }
+          // Deep copy the messages array
+          const msgCopy = messagesSnapshot.map((m) => ({ role: m.role, content: m.content }));
+          history.push({ html: htmlSnapshot, messages: msgCopy });
+          historyIndex = history.length - 1;
+          updateUndoRedoButtons();
+        }
+
+        // Update Undo/Redo buttons based on current history index
+        function updateUndoRedoButtons() {
+          undoBtn.disabled = historyIndex <= 0;
+          redoBtn.disabled = historyIndex >= history.length - 1;
+        }
+
+        // Update UI elements based on whether HTML content exists
+        function updateUiFromHtml(html) {
+          const hasContent = html && html.trim().length > 0;
+          copyBtn.disabled = !hasContent;
+          exportBtn.disabled = !hasContent;
+          continueBtn.disabled = !hasContent;
+          coachBtn.disabled = !hasContent;
+          nextStepBtn.disabled = !hasContent;
+          // Clear suggestions when reverting to previous state
+          suggestionsList.innerHTML = '';
+        }
+
+        // Undo: revert to the previous history state
+        function undo() {
+          if (historyIndex > 0) {
+            historyIndex--;
+            const state = history[historyIndex];
+            // Restore messages and HTML
+            messages = state.messages.map((m) => ({ role: m.role, content: m.content }));
+            previewFrame.srcdoc = state.html;
+            // Fade in restored preview
+            $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 400);
+            updateUiFromHtml(state.html);
+            updateUndoRedoButtons();
+          }
+        }
+
+        // Redo: move forward to the next history state
+        function redo() {
+          if (historyIndex < history.length - 1) {
+            historyIndex++;
+            const state = history[historyIndex];
+            messages = state.messages.map((m) => ({ role: m.role, content: m.content }));
+            previewFrame.srcdoc = state.html;
+            $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 400);
+            updateUiFromHtml(state.html);
+            updateUndoRedoButtons();
+          }
+        }
+
+        // Automatically perform the next suggested step
+        async function nextStep() {
+          // Only operate if there is existing content
+          const currentHtml = previewFrame.srcdoc;
+          if (!currentHtml || currentHtml.trim().length === 0) {
+            alert('Generate your page first to get suggestions.');
+            return;
+          }
+          // Disable next step to prevent duplicate clicks
+          nextStepBtn.disabled = true;
+          try {
+            const description = promptInput.value.trim();
+            const systemCoach =
+              'You are an AI coach for web design. Given a user description and its generated HTML code, provide up to three suggestions for how to improve and continue building the page. For each suggestion, first give a short explanation of what needs to be done, then a hyphen ( - ), followed by the exact instructions on how to implement that improvement. Each suggestion must be on its own line and should not include any code.';
+            const payload = {
+              maxTokens: 1024,
+              messages: [
+                { role: 'system', content: systemCoach },
+                {
+                  role: 'user',
+                  content:
+                    'Description:\n' +
+                    description +
+                    '\n\nHTML:\n' +
+                    currentHtml,
+                },
+              ],
+            };
+            const response = await fetch(
+              'https://ominisender.com/wp-json/azurechat/v1/completions',
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              }
+            );
+            if (!response.ok) {
+              throw new Error('Server responded with status ' + response.status);
+            }
+            const data = await response.json();
+            let suggestionsText = '';
+            if (data && typeof data === 'string') {
+              suggestionsText = data;
+            } else if (data.content) {
+              suggestionsText = data.content;
+            } else if (
+              data.choices &&
+              data.choices[0] &&
+              data.choices[0].message &&
+              data.choices[0].message.content
+            ) {
+              suggestionsText = data.choices[0].message.content;
+            } else if (data.html) {
+              suggestionsText = data.html;
+            }
+            const lines = suggestionsText
+              .split(/\r?\n/)
+              .map((s) => s.trim())
+              .filter((s) => s.length > 0);
+            // Update suggestions UI
+            suggestionsList.innerHTML = '';
+            lines.forEach((line) => {
+              let explanation = line;
+              let instructions = line;
+              const i = line.indexOf(' - ');
+              if (i !== -1) {
+                explanation = line.substring(0, i).trim();
+                instructions = line.substring(i + 3).trim();
+              }
+              const li = document.createElement('li');
+              li.className = 'list-group-item d-flex justify-content-between align-items-center p-2';
+              const span = document.createElement('span');
+              span.textContent = explanation;
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'btn btn-sm btn-outline-primary ms-3';
+              btn.textContent = 'Build';
+              btn.addEventListener('click', function () {
+                const impl = instructions || line;
+                applySuggestion(impl);
+              });
+              li.appendChild(span);
+              li.appendChild(btn);
+              suggestionsList.appendChild(li);
+            });
+            if (lines.length === 0) {
+              alert('No further suggestions available.');
+            } else {
+              // Automatically apply the first suggestion
+              let firstInstr = lines[0];
+              const idx = firstInstr.indexOf(' - ');
+              if (idx !== -1) {
+                firstInstr = firstInstr.substring(idx + 3).trim();
+              }
+              if (firstInstr && firstInstr.trim().length > 0) {
+                await applySuggestion(firstInstr);
+              }
+            }
+          } catch (err) {
+            console.error(err);
+            alert('An error occurred: ' + err.message);
+          } finally {
+            // Re-enable next step if we still have content
+            const hasContentNow = previewFrame.srcdoc && previewFrame.srcdoc.trim().length > 0;
+            nextStepBtn.disabled = !hasContentNow;
+          }
+        }
+
+         // Event listeners
+         generateBtn.addEventListener('click', generateHtml);
+         continueBtn.addEventListener('click', continueHtml);
+         exportBtn.addEventListener('click', exportHtml);
+        coachBtn.addEventListener('click', getSuggestions);
+        doctorBtn.addEventListener('click', applyDoctor);
+        nextStepBtn.addEventListener('click', nextStep);
+        // Initialize undo/redo buttons state
+        updateUndoRedoButtons();
+        undoBtn.addEventListener('click', undo);
+        redoBtn.addEventListener('click', redo);
+       })();
+    </script>
+  </body>
+</html>
