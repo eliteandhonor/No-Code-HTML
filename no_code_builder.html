@@ -297,7 +297,7 @@
         const suggestionsList = document.getElementById('suggestionsList');
         const nextStepBtn = document.getElementById('nextStepBtn');
         const doctorInput = document.getElementById('doctorInput');
-        const doctorBtn = document.getElementById('doctorBtn');
+       const doctorBtn = document.getElementById('doctorBtn');
        const sectionWarning = document.getElementById('sectionWarning');
        const loadingSpinner = document.getElementById('loadingSpinner');
        const previewFrame = document.getElementById('previewFrame');
@@ -310,6 +310,20 @@
         const STORAGE_KEY = 'ncbState';
         const STORAGE_VERSION = 1;
         const aiProvider = window.aiProviders && window.aiProviders.azure;
+
+        function fadeInPreviewFrame(duration = 600) {
+          if (window.jQuery) {
+            $('#previewFrame')
+              .css('opacity', 0)
+              .animate({ opacity: 1 }, duration);
+          } else {
+            previewFrame.style.opacity = 0;
+            previewFrame.style.transition = `opacity ${duration}ms`;
+            requestAnimationFrame(() => {
+              previewFrame.style.opacity = 1;
+            });
+          }
+        }
 
         const sectionMenu = document.createElement('div');
         sectionMenu.id = 'sectionContextMenu';
@@ -633,10 +647,7 @@
             previewFrame.srcdoc = html;
             validateDataSections();
             const sanitizedHtml = previewFrame.srcdoc;
-            // Fade in the preview frame using jQuery
-            $('#previewFrame')
-              .css('opacity', 0)
-              .animate({ opacity: 1 }, 600);
+            fadeInPreviewFrame(600);
             // Enable copy, export and continue buttons if there is content
            const hasContent = sanitizedHtml && sanitizedHtml.trim().length > 0;
            copyBtn.disabled = !hasContent;
@@ -691,11 +702,9 @@
                html = data.choices[0].message.content;
              }
              messages.push({ role: 'assistant', content: html });
-             const mergedHtml = mergeHtmlIntoPreview(html);
-             $('#previewFrame')
-               .css('opacity', 0)
-               .animate({ opacity: 1 }, 600);
-             const hasContent = mergedHtml && mergedHtml.trim().length > 0;
+            const mergedHtml = mergeHtmlIntoPreview(html);
+            fadeInPreviewFrame(600);
+            const hasContent = mergedHtml && mergedHtml.trim().length > 0;
              continueBtn.disabled = false;
              coachBtn.disabled = false;
              nextStepBtn.disabled = false;
@@ -865,7 +874,7 @@
             if (accepted) {
               messages.push({ role: 'assistant', content: html });
               previewFrame.srcdoc = mergedHtml;
-              $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
+              fadeInPreviewFrame(600);
               const hasContent = mergedHtml && mergedHtml.trim().length > 0;
               copyBtn.disabled = !hasContent;
               exportBtn.disabled = !hasContent;
@@ -929,7 +938,7 @@
             if (accepted) {
               messages.push({ role: 'assistant', content: html });
               previewFrame.srcdoc = mergedHtml;
-              $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
+              fadeInPreviewFrame(600);
               doctorInput.value = '';
               const hasContent = mergedHtml && mergedHtml.trim().length > 0;
               copyBtn.disabled = !hasContent;
@@ -996,7 +1005,7 @@
             validateDataSections();
             const updated = previewFrame.srcdoc;
             // Fade in restored preview
-            $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 400);
+            fadeInPreviewFrame(400);
             updateUiFromHtml(updated);
             updateUndoRedoButtons();
             persistHistory();
@@ -1012,7 +1021,7 @@
             previewFrame.srcdoc = state.html;
             validateDataSections();
             const updated = previewFrame.srcdoc;
-            $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 400);
+            fadeInPreviewFrame(400);
             updateUiFromHtml(updated);
             updateUndoRedoButtons();
             persistHistory();
@@ -1141,7 +1150,7 @@
           previewFrame.srcdoc = newHtml;
           validateDataSections();
           const updatedHtml = previewFrame.srcdoc;
-          $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
+          fadeInPreviewFrame(600);
           updateUiFromHtml(updatedHtml);
           const hasContent = updatedHtml && updatedHtml.trim().length > 0;
           if (hasContent) {
