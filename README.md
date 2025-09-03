@@ -11,6 +11,20 @@ Open `no_code_builder.html` in your browser, describe the page you want, and cli
 
 The app relies on CDN-hosted libraries (Bootstrap, jQuery, animate.css, FontAwesome, clipboard.js, and Ace). AOS is bundled locally in `vendor/aos`; rebuild with `npm run build:aos` if you need to refresh the files.
 
+### Tooling
+
+Start a local development server:
+
+```sh
+npm run dev
+```
+
+Lint JavaScript sources:
+
+```sh
+npm run lint
+```
+
 ### HTML validation
 
 Install dependencies and run the validation script to ensure each top-level block in `no_code_builder.html` defines a `data-section` attribute:
@@ -43,6 +57,6 @@ npm run nav
 - Test coverage is limited to basic success and failure cases; additional edge cases (e.g., non-HTML files) would broaden coverage.
 - Automate CDN version checks to keep dependencies current.
 - Line numbers may drift as the file evolves; run `npm run nav` after major edits to refresh the Quick Navigation table.
-- Current tooling is minimal; adding CI, linting, and a lightweight web server could improve reliability.
+- Tooling remains basic; additional build steps could improve reliability.
 - Future work: pluggable AI backends, persisted project history, and more granular section editing.
 

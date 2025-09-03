@@ -49,7 +49,7 @@ async function main() {
   let html;
   try {
     html = fs.readFileSync(htmlPath, 'utf8');
-  } catch (err) {
+  } catch {
     console.error(`Unable to read file: ${htmlPath}`);
     process.exit(1);
   }

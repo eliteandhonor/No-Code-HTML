@@ -8,7 +8,7 @@ const readmePath = path.join(process.cwd(), 'README.md');
 let html;
 try {
   html = fs.readFileSync(htmlPath, 'utf8');
-} catch (err) {
+} catch {
   console.error(`Unable to read ${htmlPath}`);
   process.exit(1);
 }
@@ -34,7 +34,7 @@ const tableLines = [
 let readme;
 try {
   readme = fs.readFileSync(readmePath, 'utf8');
-} catch (err) {
+} catch {
   console.error(`Unable to read ${readmePath}`);
   process.exit(1);
 }
