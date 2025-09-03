@@ -279,12 +279,12 @@
         let historyIndex = -1;
         const STORAGE_KEY = 'ncbState';
 
+
         // Initialize Ace editor
         editor = ace.edit('codeEditor');
         editor.session.setMode('ace/mode/html');
         editor.setTheme('ace/theme/monokai');
         editor.session.setUseWrapMode(true);
-
         function loadState() {
           const raw = localStorage.getItem(STORAGE_KEY);
           if (!raw) return;
@@ -312,6 +312,11 @@
             maxTokens: 16384,
             messages: messageList,
           };
+           const payload = {
+             maxTokens: 16384,
+             messages: messageList,
+             html: previewFrame.srcdoc,
+           };
            const response = await fetch(
              'https://ominisender.com/wp-json/azurechat/v1/completions',
              {
@@ -462,6 +467,31 @@
              }
              mergeHtmlIntoPreview(html);
              messages.push({ role: 'assistant', content: html });
+            // Merge continuation into preview by diffing DOMs
+            const parser = new DOMParser();
+            const existingDoc = parser.parseFromString(
+              previewFrame.srcdoc || '',
+              'text/html'
+            );
+            const newDoc = parser.parseFromString(html, 'text/html');
+            ['head', 'body'].forEach((section) => {
+              const existingSection = existingDoc[section];
+              const newSection = newDoc[section];
+              if (existingSection && newSection) {
+                Array.from(newSection.childNodes).forEach((node) => {
+                  const isDuplicate = Array.from(existingSection.childNodes).some(
+                    (existingNode) => existingNode.isEqualNode(node)
+                  );
+                  if (!isDuplicate) {
+                    existingSection.appendChild(node.cloneNode(true));
+                  }
+                });
+              }
+            });
+            previewFrame.srcdoc = existingDoc.documentElement.outerHTML;
+            // Save assistant message to conversation
+            messages.push({ role: 'assistant', content: html });
+             // Fade in preview again
              $('#previewFrame')
                .css('opacity', 0)
                .animate({ opacity: 1 }, 600);
@@ -603,6 +633,24 @@
           }
         }
 
+        function mergeHtmlIntoPreview(newHtml) {
+          const parser = new DOMParser();
+          const incomingDoc = parser.parseFromString(newHtml, 'text/html');
+          const doc = previewFrame.contentDocument;
+          if (!doc) {
+            return previewFrame.srcdoc;
+          }
+          Array.from(incomingDoc.head.children).forEach((node) => {
+            doc.head.appendChild(doc.importNode(node, true));
+          });
+          Array.from(incomingDoc.body.children).forEach((node) => {
+            doc.body.appendChild(doc.importNode(node, true));
+          });
+          const merged = doc.documentElement.outerHTML;
+          previewFrame.srcdoc = merged;
+          return merged;
+        }
+
         // Apply an individual suggestion by sending it to the assistant
         async function applySuggestion(suggestion) {
           if (!suggestion || suggestion.trim().length === 0) {
@@ -636,9 +684,13 @@
               html = data.choices[0].message.content;
             }
             messages.push({ role: 'assistant', content: html });
+
             mergeHtmlIntoPreview(html);
             $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
             const mergedHtml = previewFrame.srcdoc;
+            const mergedHtml = mergeHtmlIntoPreview(html);
+            $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
+
             const hasContent = mergedHtml && mergedHtml.trim().length > 0;
             copyBtn.disabled = !hasContent;
             exportBtn.disabled = !hasContent;
@@ -693,6 +745,7 @@
             }
             messages.push({ role: 'assistant', content: html });
             mergeHtmlIntoPreview(html);
+            const mergedHtml = mergeHtmlIntoPreview(html);
             $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
             doctorInput.value = '';
             const mergedHtml = previewFrame.srcdoc;
