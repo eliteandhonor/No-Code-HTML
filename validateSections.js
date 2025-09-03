@@ -16,6 +16,12 @@ try {
   process.exit(1);
 }
 
+const trimmed = html.trimStart();
+if (!trimmed.startsWith('<')) {
+  console.error('Unsupported input format: expected HTML.');
+  process.exit(1);
+}
+
 const $ = cheerio.load(html);
 let missing = false;
 $('body').children().each((index, element) => {
