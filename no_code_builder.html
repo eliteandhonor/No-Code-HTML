@@ -363,7 +363,9 @@
             currentDoc.body.appendChild(node);
           });
 
-          previewFrame.srcdoc = '<!DOCTYPE html>' + currentDoc.documentElement.outerHTML;
+          const merged = '<!DOCTYPE html>' + currentDoc.documentElement.outerHTML;
+          previewFrame.srcdoc = merged;
+          return merged;
         }
 
          async function generateHtml() {
@@ -440,79 +442,53 @@
            }
          }
 
-         async function continueHtml() {
-           // Use existing messages and ask the assistant to continue
-           if (messages.length === 0) {
-             alert('No previous generation to continue. Please generate first.');
-             return;
-           }
-           loadingSpinner.style.display = 'block';
-           continueBtn.disabled = true;
-           try {
-             const currentHtml = previewFrame.srcdoc;
-             messages.push({
-               role: 'user',
-               content:
-                 'Existing HTML:\n' +
-                 currentHtml +
-                 '\n\nContinue generating the HTML code. Wrap each logical block in a tag with data-section="<unique-name>".',
-             });
-             const data = await sendRequest(messages);
-             let html = '';
-             if (data && typeof data === 'string') {
-               html = data;
-             } else if (data.html) {
-               html = data.html;
-             } else if (data.content) {
-               html = data.content;
-             } else if (
-               data.choices &&
-               data.choices[0] &&
-               data.choices[0].message &&
-               data.choices[0].message.content
-             ) {
-               html = data.choices[0].message.content;
-             }
-             mergeHtmlIntoPreview(html);
-             messages.push({ role: 'assistant', content: html });
-            // Merge continuation into preview by diffing DOMs
-            const parser = new DOMParser();
-            const existingDoc = parser.parseFromString(
-              previewFrame.srcdoc || '',
-              'text/html'
-            );
-            const newDoc = parser.parseFromString(html, 'text/html');
-            ['head', 'body'].forEach((section) => {
-              const existingSection = existingDoc[section];
-              const newSection = newDoc[section];
-              if (existingSection && newSection) {
-                Array.from(newSection.childNodes).forEach((node) => {
-                  const isDuplicate = Array.from(existingSection.childNodes).some(
-                    (existingNode) => existingNode.isEqualNode(node)
-                  );
-                  if (!isDuplicate) {
-                    existingSection.appendChild(node.cloneNode(true));
-                  }
-                });
-              }
+        async function continueHtml() {
+          // Use existing messages and ask the assistant to continue
+          if (messages.length === 0) {
+            alert('No previous generation to continue. Please generate first.');
+            return;
+          }
+          loadingSpinner.style.display = 'block';
+          continueBtn.disabled = true;
+          try {
+            const currentHtml = previewFrame.srcdoc;
+            messages.push({
+              role: 'user',
+              content:
+                'Existing HTML:\n' +
+                currentHtml +
+                '\n\nContinue generating the HTML code. Wrap each logical block in a tag with data-section="<unique-name>".',
             });
-            previewFrame.srcdoc = existingDoc.documentElement.outerHTML;
-            // Save assistant message to conversation
+            const data = await sendRequest(messages);
+            let html = '';
+            if (data && typeof data === 'string') {
+              html = data;
+            } else if (data.html) {
+              html = data.html;
+            } else if (data.content) {
+              html = data.content;
+            } else if (
+              data.choices &&
+              data.choices[0] &&
+              data.choices[0].message &&
+              data.choices[0].message.content
+            ) {
+              html = data.choices[0].message.content;
+            }
             messages.push({ role: 'assistant', content: html });
-             // Fade in preview again
-             $('#previewFrame')
-               .css('opacity', 0)
-               .animate({ opacity: 1 }, 600);
-             const mergedHtml = previewFrame.srcdoc;
-             const hasContent = mergedHtml && mergedHtml.trim().length > 0;
-             continueBtn.disabled = false;
-             coachBtn.disabled = false;
-             nextStepBtn.disabled = false;
-             editBtn.disabled = !hasContent;
-             if (hasContent) {
-               saveState(mergedHtml, messages);
-             }
-           } catch (err) {
+            const mergedHtml = mergeHtmlIntoPreview(html);
+            $('#previewFrame')
+              .css('opacity', 0)
+              .animate({ opacity: 1 }, 600);
+            const hasContent = mergedHtml && mergedHtml.trim().length > 0;
+            continueBtn.disabled = false;
+            coachBtn.disabled = false;
+            nextStepBtn.disabled = false;
+            editBtn.disabled = !hasContent;
+            if (hasContent) {
+              saveState(mergedHtml, messages);
+            }
+          } catch (err) {
             console.error(err);
             alert('An error occurred: ' + err.message);
           } finally {
@@ -641,24 +617,6 @@
           }
         }
 
-        function mergeHtmlIntoPreview(newHtml) {
-          const parser = new DOMParser();
-          const incomingDoc = parser.parseFromString(newHtml, 'text/html');
-          const doc = previewFrame.contentDocument;
-          if (!doc) {
-            return previewFrame.srcdoc;
-          }
-          Array.from(incomingDoc.head.children).forEach((node) => {
-            doc.head.appendChild(doc.importNode(node, true));
-          });
-          Array.from(incomingDoc.body.children).forEach((node) => {
-            doc.body.appendChild(doc.importNode(node, true));
-          });
-          const merged = doc.documentElement.outerHTML;
-          previewFrame.srcdoc = merged;
-          return merged;
-        }
-
         // Apply an individual suggestion by sending it to the assistant
         async function applySuggestion(suggestion) {
           if (!suggestion || suggestion.trim().length === 0) {
@@ -693,10 +651,6 @@
               html = data.choices[0].message.content;
             }
             messages.push({ role: 'assistant', content: html });
-
-            mergeHtmlIntoPreview(html);
-            $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
-            const mergedHtml = previewFrame.srcdoc;
             const mergedHtml = mergeHtmlIntoPreview(html);
             $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
 
@@ -754,11 +708,9 @@
               html = data.choices[0].message.content;
             }
             messages.push({ role: 'assistant', content: html });
-            mergeHtmlIntoPreview(html);
             const mergedHtml = mergeHtmlIntoPreview(html);
             $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
             doctorInput.value = '';
-            const mergedHtml = previewFrame.srcdoc;
             const hasContent = mergedHtml && mergedHtml.trim().length > 0;
             copyBtn.disabled = !hasContent;
             exportBtn.disabled = !hasContent;
