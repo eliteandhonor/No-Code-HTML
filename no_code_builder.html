@@ -694,9 +694,6 @@
             }
             messages.push({ role: 'assistant', content: html });
 
-            mergeHtmlIntoPreview(html);
-            $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
-            const mergedHtml = previewFrame.srcdoc;
             const mergedHtml = mergeHtmlIntoPreview(html);
             $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
 
@@ -754,11 +751,9 @@
               html = data.choices[0].message.content;
             }
             messages.push({ role: 'assistant', content: html });
-            mergeHtmlIntoPreview(html);
             const mergedHtml = mergeHtmlIntoPreview(html);
             $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
             doctorInput.value = '';
-            const mergedHtml = previewFrame.srcdoc;
             const hasContent = mergedHtml && mergedHtml.trim().length > 0;
             copyBtn.disabled = !hasContent;
             exportBtn.disabled = !hasContent;
