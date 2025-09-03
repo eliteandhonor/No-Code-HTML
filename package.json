@@ -6,7 +6,8 @@
   "scripts": {
     "test": "jest",
     "validate": "node validateSections.js no_code_builder.html",
-    "build:aos": "esbuild node_modules/aos/dist/aos.js --bundle --minify --outfile=vendor/aos/aos.min.js && esbuild node_modules/aos/dist/aos.css --minify --outfile=vendor/aos/aos.min.css"
+    "build:aos": "esbuild node_modules/aos/dist/aos.js --bundle --minify --outfile=vendor/aos/aos.min.js && esbuild node_modules/aos/dist/aos.css --minify --outfile=vendor/aos/aos.min.css",
+    "check-cdn": "node scripts/check-cdn.js"
   },
   "keywords": [],
   "author": "",
