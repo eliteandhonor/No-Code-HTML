@@ -75,8 +75,8 @@
         border-radius: 0.25rem;
         background: #fff;
       }
-      #loadingSpinner {
-        display: none;
+      #codeEditor {
+        height: 400px;
       }
     </style>
   </head>
@@ -99,6 +99,7 @@
         <div class="form-text">
           Label each new block with <code>data-section</code> and a unique name.
         </div>
+        <div id="sectionWarning" class="text-danger small"></div>
       </div>
         <div class="d-flex flex-wrap gap-2 mb-3" data-aos="fade-up" data-aos-delay="200">
          <button id="generateBtn" class="btn btn-primary flex-fill">
@@ -177,7 +178,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body p-0">
-            <div id="codeEditor" style="height: 400px"></div>
+            <div id="codeEditor"></div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -272,6 +273,7 @@
          const nextStepBtn = document.getElementById('nextStepBtn');
          const doctorInput = document.getElementById('doctorInput');
          const doctorBtn = document.getElementById('doctorBtn');
+        const sectionWarning = document.getElementById('sectionWarning');
         const loadingSpinner = document.getElementById('loadingSpinner');
         const previewFrame = document.getElementById('previewFrame');
         let editor;
@@ -281,6 +283,40 @@
         let history = [];
         let historyIndex = -1;
         const STORAGE_KEY = 'ncbState';
+
+        function validateDataSections() {
+          const doc = previewFrame.contentDocument;
+          if (!doc) return;
+          const elements = doc.querySelectorAll('[data-section]');
+          const seen = {};
+          const renamed = [];
+          elements.forEach((el) => {
+            const name = el.getAttribute('data-section');
+            if (!name) return;
+            if (seen[name]) {
+              let suffix = 1;
+              let newName = `${name}-${suffix}`;
+              while (seen[newName]) {
+                suffix++;
+                newName = `${name}-${suffix}`;
+              }
+              el.setAttribute('data-section', newName);
+              renamed.push(`${name}→${newName}`);
+              seen[newName] = true;
+            } else {
+              seen[name] = true;
+            }
+          });
+          if (renamed.length > 0) {
+            previewFrame.srcdoc = doc.documentElement.outerHTML;
+            if (sectionWarning) {
+              sectionWarning.textContent =
+                'Duplicate data-section values adjusted: ' + renamed.join(', ');
+            }
+          } else if (sectionWarning) {
+            sectionWarning.textContent = '';
+          }
+        }
 
 
         // Initialize Ace editor
@@ -295,7 +331,9 @@
             const saved = JSON.parse(raw);
             if (saved.html) {
               previewFrame.srcdoc = saved.html;
-              updateUiFromHtml(saved.html);
+              validateDataSections();
+              const sanitized = previewFrame.srcdoc;
+              updateUiFromHtml(sanitized);
             }
             if (Array.isArray(saved.messages)) {
               messages = saved.messages.map((m) => ({ role: m.role, content: m.content }));
@@ -411,25 +449,27 @@
              ) {
                html = data.choices[0].message.content;
              }
-             // Save assistant message to conversation for continuation
-             messages.push({ role: 'assistant', content: html });
-             previewFrame.srcdoc = html;
-             // Fade in the preview frame using jQuery
-             $('#previewFrame')
-               .css('opacity', 0)
-               .animate({ opacity: 1 }, 600);
-             // Enable copy, export and continue buttons if there is content
-            const hasContent = html && html.trim().length > 0;
-            copyBtn.disabled = !hasContent;
-            exportBtn.disabled = !hasContent;
-            continueBtn.disabled = !hasContent;
-            coachBtn.disabled = !hasContent;
-            // Enable or disable next step button depending on content
-            nextStepBtn.disabled = !hasContent;
-            // Save current state for undo/redo
-            if (hasContent) {
-              saveState(html, messages);
-            }
+            // Save assistant message to conversation for continuation
+            messages.push({ role: 'assistant', content: html });
+            previewFrame.srcdoc = html;
+            validateDataSections();
+            const sanitizedHtml = previewFrame.srcdoc;
+            // Fade in the preview frame using jQuery
+            $('#previewFrame')
+              .css('opacity', 0)
+              .animate({ opacity: 1 }, 600);
+            // Enable copy, export and continue buttons if there is content
+           const hasContent = sanitizedHtml && sanitizedHtml.trim().length > 0;
+           copyBtn.disabled = !hasContent;
+           exportBtn.disabled = !hasContent;
+           continueBtn.disabled = !hasContent;
+           coachBtn.disabled = !hasContent;
+           // Enable or disable next step button depending on content
+           nextStepBtn.disabled = !hasContent;
+           // Save current state for undo/redo
+           if (hasContent) {
+             saveState(sanitizedHtml, messages);
+           }
            } catch (err) {
              console.error(err);
              alert('An error occurred: ' + err.message);
@@ -438,62 +478,63 @@
            }
          }
 
-        async function continueHtml() {
-          // Use existing messages and ask the assistant to continue
-          if (messages.length === 0) {
-            alert('No previous generation to continue. Please generate first.');
-            return;
-          }
-          loadingSpinner.style.display = 'block';
-          continueBtn.disabled = true;
-          try {
-            const currentHtml = previewFrame.srcdoc;
-            messages.push({
-              role: 'user',
-              content:
-                'Existing HTML:\n' +
-                currentHtml +
-                '\n\nContinue generating the HTML code. Wrap each logical block in a tag with data-section="<unique-name>".',
-            });
-            const data = await sendRequest(messages);
-            let html = '';
-            if (data && typeof data === 'string') {
-              html = data;
-            } else if (data.html) {
-              html = data.html;
-            } else if (data.content) {
-              html = data.content;
-            } else if (
-              data.choices &&
-              data.choices[0] &&
-              data.choices[0].message &&
-              data.choices[0].message.content
-            ) {
-              html = data.choices[0].message.content;
-            }
-            messages.push({ role: 'assistant', content: html });
-            const mergedHtml = mergeHtmlIntoPreview(html);
-            $('#previewFrame')
-              .css('opacity', 0)
-              .animate({ opacity: 1 }, 600);
-            const hasContent = mergedHtml && mergedHtml.trim().length > 0;
-            continueBtn.disabled = false;
-            coachBtn.disabled = false;
-            nextStepBtn.disabled = false;
-            editBtn.disabled = !hasContent;
-            if (hasContent) {
-              saveState(mergedHtml, messages);
-            }
-          } catch (err) {
-            console.error(err);
-            alert('An error occurred: ' + err.message);
-          } finally {
-            loadingSpinner.style.display = 'none';
-          }
-        }
+         async function continueHtml() {
+           // Use existing messages and ask the assistant to continue
+           if (messages.length === 0) {
+             alert('No previous generation to continue. Please generate first.');
+             return;
+           }
+           loadingSpinner.style.display = 'block';
+           continueBtn.disabled = true;
+           try {
+             const currentHtml = previewFrame.srcdoc;
+             messages.push({
+               role: 'user',
+               content:
+                 'Existing HTML:\n' +
+                 currentHtml +
+                 '\n\nContinue generating the HTML code. Wrap each logical block in a tag with data-section="<unique-name>".',
+             });
+             const data = await sendRequest(messages);
+             let html = '';
+             if (data && typeof data === 'string') {
+               html = data;
+             } else if (data.html) {
+               html = data.html;
+             } else if (data.content) {
+               html = data.content;
+             } else if (
+               data.choices &&
+               data.choices[0] &&
+               data.choices[0].message &&
+               data.choices[0].message.content
+             ) {
+               html = data.choices[0].message.content;
+             }
+             messages.push({ role: 'assistant', content: html });
+             const mergedHtml = mergeHtmlIntoPreview(html);
+             $('#previewFrame')
+               .css('opacity', 0)
+               .animate({ opacity: 1 }, 600);
+             const hasContent = mergedHtml && mergedHtml.trim().length > 0;
+             continueBtn.disabled = false;
+             coachBtn.disabled = false;
+             nextStepBtn.disabled = false;
+             editBtn.disabled = !hasContent;
+             if (hasContent) {
+               saveState(mergedHtml, messages);
+             }
+           } catch (err) {
+             console.error(err);
+             alert('An error occurred: ' + err.message);
+           } finally {
+             loadingSpinner.style.display = 'none';
+           }
+         }
 
-         function exportHtml() {
-           const htmlContent = previewFrame.srcdoc;
+        function exportHtml() {
+          validateDataSections();
+          const htmlContent = previewFrame.srcdoc;
            if (!htmlContent) {
              alert('No HTML to export.');
              return;
@@ -773,9 +814,11 @@
             // Restore messages and HTML
             messages = state.messages.map((m) => ({ role: m.role, content: m.content }));
             previewFrame.srcdoc = state.html;
+            validateDataSections();
+            const updated = previewFrame.srcdoc;
             // Fade in restored preview
             $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 400);
-            updateUiFromHtml(state.html);
+            updateUiFromHtml(updated);
             updateUndoRedoButtons();
             try {
               localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -792,8 +835,10 @@
             const state = history[historyIndex];
             messages = state.messages.map((m) => ({ role: m.role, content: m.content }));
             previewFrame.srcdoc = state.html;
+            validateDataSections();
+            const updated = previewFrame.srcdoc;
             $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 400);
-            updateUiFromHtml(state.html);
+            updateUiFromHtml(updated);
             updateUndoRedoButtons();
             try {
               localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -931,11 +976,13 @@
         saveEditBtn.addEventListener('click', function () {
           const newHtml = editor.getValue();
           previewFrame.srcdoc = newHtml;
+          validateDataSections();
+          const updatedHtml = previewFrame.srcdoc;
           $('#previewFrame').css('opacity', 0).animate({ opacity: 1 }, 600);
-          updateUiFromHtml(newHtml);
-          const hasContent = newHtml && newHtml.trim().length > 0;
+          updateUiFromHtml(updatedHtml);
+          const hasContent = updatedHtml && updatedHtml.trim().length > 0;
           if (hasContent) {
-            saveState(newHtml, messages);
+            saveState(updatedHtml, messages);
           }
           bootstrap.Modal.getInstance(document.getElementById('editorModal')).hide();
         });
